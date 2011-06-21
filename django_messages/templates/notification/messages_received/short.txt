@@ -1,1 +1,1 @@
-{% load i18n %}{% blocktrans with message.sender as message_sender %}{{ notice }} by {{ message_sender }}{% endblocktrans %}
+{% load i18n %}{% blocktrans with message.sender.get_full_name|default:message.sender as message_sender %}{{ notice }} from {{ message_sender }}{% endblocktrans %}
