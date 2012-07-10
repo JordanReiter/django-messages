@@ -28,7 +28,7 @@ class ComposeForm(forms.Form):
         if recipient_filter is not None:
             self.fields['recipient']._recipient_filter = recipient_filter
     
-    def save(self, sender, parent_msg=None):
+    def save(self, sender, parent_msg=None, extra_kwargs=None):
         recipients = self.cleaned_data['recipient']
         subject = self.cleaned_data['subject']
         body = self.cleaned_data['body']
@@ -47,8 +47,11 @@ class ComposeForm(forms.Form):
             msg.save()
             message_list.append(msg)
             if notification:
+                notification_kwargs = {'message': msg,}
+                if extra_kwargs:
+                    notification_kwargs.update(extra_kwargs)
                 if parent_msg is not None:
-                    notification.send([r], "messages_reply_received", {'message': msg,})
+                    notification.send([r], "messages_reply_received", notification_kwargs)
                 else:
-                    notification.send([r], "messages_received", {'message': msg,})
+                    notification.send([r], "messages_received", notification_kwargs)
         return message_list
