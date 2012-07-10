@@ -47,11 +47,8 @@ class ComposeForm(forms.Form):
             msg.save()
             message_list.append(msg)
             if notification:
-                notification_kwargs = {'message': msg,}
-                if extra_kwargs:
-                    notification_kwargs.update(extra_kwargs)
                 if parent_msg is not None:
-                    notification.send([r], "messages_reply_received", notification_kwargs)
+                    notification.send([r], "messages_reply_received", {'message': msg,}, **extra_kwargs)
                 else:
-                    notification.send([r], "messages_received", notification_kwargs)
+                    notification.send([r], "messages_received", {'message': msg,}, **extra_kwargs)
         return message_list
