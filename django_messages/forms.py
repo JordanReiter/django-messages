@@ -147,7 +147,7 @@ class RecipientDisplayWidget(CommaSeparatedUserInput):
         output = super(RecipientDisplayWidget, self).render(name, value, attrs)
         display = value
         if display is None:
-            display = ''
+            display = 'None'
         elif isinstance(display, (list, tuple)):
             display = (', '.join([self._format_display(user) for user in display]))
         else:
