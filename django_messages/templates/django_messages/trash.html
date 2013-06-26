@@ -1,5 +1,7 @@
 {% extends "django_messages/base.html" %} 
 {% load i18n %} 
+{% load url from future %}
+
 {% block content %} 
 <h1>{% trans "Deleted Messages" %}</h1>
 {% if message_list %} 
@@ -15,7 +17,7 @@
         {{ message.subject }}
         </td>
         <td>{{ message.sent_at|date:_("DATETIME_FORMAT") }}</td>
-        <td><a href="{% url messages_undelete message.id %}">{% trans "undelete" %}</a></td>
+        <td><a href="{% url 'messages_undelete' message.id %}">{% trans "undelete" %}</a></td>
     </tr>
 {% endfor %}
     </tbody>

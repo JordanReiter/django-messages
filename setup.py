@@ -4,9 +4,10 @@ setup(
     name='django-messages',
     version=__import__('django_messages').__version__,
     description='User-to-user messaging system for Django',
-    author='Arne Brodowski',
-    author_email='mail@arnebrodowski.de',
-    url='http://code.google.com/p/django-messages/',
+    long_description=open('README.rst').read(),
+    author='Jordan Reiter',
+    author_email='jordanthecoder@gmail.com',
+    url='https://github.com/JordanReiter/django-messages',
     download_url='http://code.google.com/p/django-messages/downloads/list',
     packages=(
         'django_messages',

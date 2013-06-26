@@ -2,9 +2,11 @@ import datetime
 from django.db import models
 from django.conf import settings
 from django.db.models import signals
-from django.db.models.query import QuerySet
-from django.contrib.auth.models import User
 from django.utils.translation import ugettext_lazy as _
+
+from django_messages.utils import get_user_model
+User = get_user_model()
+
 
 class MessageManager(models.Manager):
 
@@ -78,10 +80,10 @@ class Message(models.Model):
         return ('messages_detail', [self.id])
     get_absolute_url = models.permalink(get_absolute_url)
     
-    def save(self, *args, **kwargs):
+    def save(self, **kwargs):
         if not self.id:
             self.sent_at = datetime.datetime.now()
-        super(Message, self).save(*args, **kwargs) 
+        super(Message, self).save(**kwargs) 
     
     class Meta:
         ordering = ['-sent_at']

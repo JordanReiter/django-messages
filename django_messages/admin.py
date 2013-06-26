@@ -2,7 +2,10 @@ from django import forms
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.contrib import admin
-from django.contrib.auth.models import User, Group
+from django.contrib.auth.models import Group
+
+from django_messages.utils import get_user_model
+User = get_user_model()
 
 if "notification" in settings.INSTALLED_APPS:
     from notification import models as notification
@@ -74,9 +77,14 @@ class MessageAdmin(admin.ModelAdmin):
         if notification:
             # Getting the appropriate notice labels for the sender and recipients.
             if obj.parent_msg is None:
+                sender_label = 'messages_sent'
                 recipients_label = 'messages_received'
             else:
+                sender_label = 'messages_replied'
                 recipients_label = 'messages_reply_received'
+                
+            # Notification for the sender.
+            notification.send([obj.sender], sender_label, {'message': obj,})
 
         if form.cleaned_data['group'] == 'all':
             # send to all users
