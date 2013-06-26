@@ -72,10 +72,14 @@ def compose(request, recipient=None, form_class=ComposeForm,
         ``template_name``: the template to use
         ``success_url``: where to redirect after successfull submission
     """
+    if recipient:
+        recipients = [u for u in User.objects.filter(**{'%s__in' % get_username_field(): [r.strip() for r in recipient.split('+')]})]
+    else:
+        recipients = None
     if request.method == "POST":
         sender = request.user
         if recipient:
-            form = recipient_form_class(request.POST, recipients=[recipient], 
+            form = recipient_form_class(request.POST, recipients=recipients, 
                 recipient_filter=recipient_filter, recipient_format=recipient_format
                 )
         else:
@@ -90,7 +94,6 @@ def compose(request, recipient=None, form_class=ComposeForm,
             return HttpResponseRedirect(success_url)
     else:
         if recipient is not None:
-            recipients = [u for u in User.objects.filter(**{'%s__in' % get_username_field(): [r.strip() for r in recipient.split('+')]})]
             form = recipient_form_class(recipients = recipients, recipient_format=recipient_format)
         else:
             form = form_class()

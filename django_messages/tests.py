@@ -114,11 +114,31 @@ class IntegrationTestCase(TestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(response.templates[0].name, 'django_messages/compose.html')
         self.assertRegexpMatches(response.content, r"""<label.*>Recipient:</label>.*<span>%(recipient)s<input.*name="recipient" type="hidden" value="%(recipient)s" /></span>""" % { 'recipient': self.user_1.username })
-        response = self.c.post(reverse('messages_compose'),
+        response = self.c.post(reverse('messages_compose_to', kwargs={'recipient': self.user_1.username }),
             {'recipient': self.T_USER_DATA[1]['username'],
              'subject': self.T_MESSAGE_DATA[0]['subject'],
              'body': self.T_MESSAGE_DATA[0]['body']})
-        # successfull sending should redirect to inbox
+        # recipient was changed, so it should throw an error
+        self.assertEquals(response.status_code, 200)
+        form = response.context['form']
+        errors = getattr(form, "errors", None)
+        self.assertEquals(errors, {'recipient': [u'You cannot change the recipient for this message.']})
+        
+        # make sure the message exists in the outbox after sending
+        response = self.c.get(reverse('messages_outbox'))
+        self.assertEquals(len(response.context['message_list']), 0)
+
+    def testComposeRecipientChangeRecipient(self):
+        """ compose a message step by step """
+        response = self.c.get(reverse('messages_compose_to', kwargs={'recipient': self.user_1.username }))
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.templates[0].name, 'django_messages/compose.html')
+        self.assertRegexpMatches(response.content, r"""<label.*>Recipient:</label>.*<span>%(recipient)s<input.*name="recipient" type="hidden" value="%(recipient)s" /></span>""" % { 'recipient': self.user_1.username })
+        response = self.c.post(reverse('messages_compose_to', kwargs={'recipient': self.user_1.username }),
+            {'recipient': self.T_USER_DATA[0]['username'],
+             'subject': self.T_MESSAGE_DATA[0]['subject'],
+             'body': self.T_MESSAGE_DATA[0]['body']})
+        print response
         self.assertEquals(response.status_code, 302)
         self.assertEquals(response['Location'], "http://testserver%s"%reverse('messages_inbox'))
         

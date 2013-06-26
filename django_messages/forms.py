@@ -32,7 +32,7 @@ class ComposeForm(forms.Form):
             self.fields['recipient']._recipient_filter = recipient_filter
 
             
-    def save(self, sender, parent_msg=None, extra_kwargs=None):
+    def save(self, sender, parent_msg=None, extra_kwargs={}):
         recipients = self.cleaned_data['recipient']
         subject = self.cleaned_data['subject']
         body = self.cleaned_data['body']
@@ -93,7 +93,7 @@ class ComposeForm(forms.Form):
             self.fields['recipient']._recipient_filter = recipient_filter
 
             
-    def save(self, sender, parent_msg=None, extra_kwargs=None):
+    def save(self, sender, parent_msg=None, extra_kwargs={}):
         recipients = self.cleaned_data['recipient']
         subject = self.cleaned_data['subject']
         body = self.cleaned_data['body']
@@ -129,15 +129,15 @@ class RecipientDisplayWidget(CommaSeparatedUserInput):
         self.recipient_format = kwargs.pop("recipient_format", None)
         super(RecipientDisplayWidget, self).__init__(*args, **kwargs)
     
-    def _format_value(self, value):
-        if not isinstance(value, User):
+    def _format_display(self, display):
+        if not isinstance(display, User):
             try:
-                value = User.objects.get(**{'%s__iexact' % get_username_field(): value})
+                display = User.objects.get(**{'%s__iexact' % get_username_field(): display})
             except User.DoesNotExist:
                 return ""
         if self.recipient_format:
-            return self.recipient_format(value)
-        return getattr(value, get_username_field())
+            return self.recipient_format(display)
+        return getattr(display, get_username_field())
     
     def render(self, name, value, attrs=None):
         if value is None:
@@ -149,14 +149,24 @@ class RecipientDisplayWidget(CommaSeparatedUserInput):
         if display is None:
             display = ''
         elif isinstance(display, (list, tuple)):
-            display = (', '.join([self._format_value(user) for user in display]))
+            display = (', '.join([self._format_display(user) for user in display]))
+        else:
+            display = self._format_display(display)
         return mark_safe(u'<span>%s%s</span>' % (display, output))
 
 
 class ComposeToForm(ComposeForm):
     def __init__(self, *args, **kwargs):
         recipient_format = kwargs.pop("recipient_format", None)
-        recipients = kwargs.pop("recipients", None)
+        self.recipients = kwargs.pop("recipients", None)
         super(ComposeToForm, self).__init__(*args, **kwargs)
         self.fields['recipient'].widget = RecipientDisplayWidget(recipient_format=recipient_format)
-        self.fields['recipient'].initial = recipients
+        self.fields['recipient'].initial = self.recipients
+
+    def clean_recipient(self):
+        data = self.cleaned_data.get('recipient')
+        if not isinstance(data, (tuple, list)):
+            data = [data]
+        if [dd.pk for dd in data] == [rr.pk for rr in self.recipients]:
+            return data
+        raise forms.ValidationError("You cannot change the recipient for this message.")
