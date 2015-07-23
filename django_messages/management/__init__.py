@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from django.db.models import get_models, signals
 from django.conf import settings
 from django.utils.translation import ugettext_noop as _
@@ -15,4 +17,4 @@ if "notification" in settings.INSTALLED_APPS:
 
     signals.post_syncdb.connect(create_notice_types, sender=notification)
 else:
-    print "Skipping creation of NoticeTypes as notification app not found"
+    print("Skipping creation of NoticeTypes as notification app not found")
