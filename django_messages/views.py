@@ -1,3 +1,5 @@
+import re
+
 from django.http import Http404, HttpResponseRedirect
 from django.shortcuts import render_to_response, get_object_or_404
 from django.template import RequestContext
@@ -9,7 +11,7 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 
 from django_messages.models import Message
-from django_messages.forms import ComposeForm
+from django_messages.forms import ComposeForm, ComposeToForm
 from django_messages.utils import format_quote, get_user_model, get_username_field
 
 User = get_user_model()
@@ -59,7 +61,9 @@ def trash(request, template_name='django_messages/trash.html'):
 
 @login_required
 def compose(request, recipient=None, form_class=ComposeForm,
-        template_name='django_messages/compose.html', success_url=None, recipient_filter=None):
+        recipient_form_class=ComposeToForm, 
+        template_name='django_messages/compose.html', success_url=None, 
+        recipient_filter=None, recipient_format=None):
     """
     Displays and handles the ``form_class`` form to compose new messages.
     Required Arguments: None
@@ -71,9 +75,27 @@ def compose(request, recipient=None, form_class=ComposeForm,
         ``template_name``: the template to use
         ``success_url``: where to redirect after successfull submission
     """
+    if recipient:
+        recipients = User.objects.filter(
+            **{
+                '%s__in' % get_username_field(): [
+                    rr for rr in re.split(r'[+,\s]+', recipient) if rr
+                ]
+            }
+        )
+    else:
+        recipients = None
     if request.method == "POST":
         sender = request.user
-        form = form_class(request.POST, recipient_filter=recipient_filter)
+        if recipients:
+            form = recipient_form_class(
+                request.POST, 
+                recipients=recipients, 
+                recipient_filter=recipient_filter, 
+                recipient_format=recipient_format
+            )
+        else:
+            form = form_class(request.POST, recipient_filter=recipient_filter)
         if form.is_valid():
             form.save(sender=request.user)
             messages.info(request, _(u"Message successfully sent."))
@@ -83,18 +105,19 @@ def compose(request, recipient=None, form_class=ComposeForm,
                 success_url = request.GET['next']
             return HttpResponseRedirect(success_url)
     else:
-        form = form_class()
         if recipient is not None:
-            recipients = [u for u in User.objects.filter(**{'%s__in' % get_username_field(): [r.strip() for r in recipient.split('+')]})]
-            form.fields['recipient'].initial = recipients
+            form = recipient_form_class(recipients = recipients, recipient_format=recipient_format)
+        else:
+            form = form_class()
     return render_to_response(template_name, {
         'form': form,
     }, context_instance=RequestContext(request))
 
 @login_required
-def reply(request, message_id, form_class=ComposeForm,
-        template_name='django_messages/compose.html', success_url=None,
-        recipient_filter=None, quote_helper=format_quote,
+def reply(request, message_id, form_class=ComposeToForm,
+        template_name='django_messages/compose.html', success_url=None, 
+        recipient_filter=None, recipient_format=None, 
+        quote_helper=format_quote,
         subject_template=_(u"Re: %(subject)s"),):
     """
     Prepares the ``form_class`` form for writing a reply to a given message
@@ -110,7 +133,9 @@ def reply(request, message_id, form_class=ComposeForm,
 
     if request.method == "POST":
         sender = request.user
-        form = form_class(request.POST, recipient_filter=recipient_filter)
+        form = form_class(request.POST, recipients=[parent.sender], 
+            recipient_filter=recipient_filter, recipient_format=recipient_format
+        )
         if form.is_valid():
             form.save(sender=request.user, parent_msg=parent)
             messages.info(request, _(u"Message successfully sent."))
@@ -118,11 +143,11 @@ def reply(request, message_id, form_class=ComposeForm,
                 success_url = reverse('messages_inbox')
             return HttpResponseRedirect(success_url)
     else:
-        form = form_class(initial={
+        form = form_class(recipients=[parent.sender], initial={
             'body': quote_helper(parent.sender, parent.body),
             'subject': subject_template % {'subject': parent.subject},
             'recipient': [parent.sender,]
-            })
+            }, recipient_format=recipient_format)
     return render_to_response(template_name, {
         'form': form,
     }, context_instance=RequestContext(request))
@@ -190,8 +215,8 @@ def undelete(request, message_id, success_url=None):
     raise Http404
 
 @login_required
-def view(request, message_id, form_class=ComposeForm, quote_helper=format_quote,
-        subject_template=_(u"Re: %(subject)s"),
+def view(request, message_id, form_class=ComposeToForm, quote_helper=format_quote,
+        subject_template=_(u"Re: %(subject)s"), recipient_format=None
         template_name='django_messages/view.html'):
     """
     Shows a single message.``message_id`` argument is required.
@@ -214,11 +239,15 @@ def view(request, message_id, form_class=ComposeForm, quote_helper=format_quote,
 
     context = {'message': message, 'reply_form': None}
     if message.recipient == user:
-        form = form_class(initial={
-            'body': quote_helper(message.sender, message.body),
-            'subject': subject_template % {'subject': message.subject},
-            'recipient': [message.sender,]
-            })
+        form = form_class(
+            recipients = [message.sender,],
+            initial={
+                'body': quote_helper(message.sender, message.body),
+                'subject': subject_template % {'subject': message.subject},
+                'recipient': [message.sender,]
+            },
+            recipient_format = recipient_format
+        )
         context['reply_form'] = form
     return render_to_response(template_name, context,
         context_instance=RequestContext(request))

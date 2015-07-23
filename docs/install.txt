@@ -36,7 +36,7 @@ http://code.google.com/p/django-messages/downloads/list
 If you prefer to use the current developement version to get earlier access to
 new features you can checkout the code from the GIT repository::
 
-    git clone https://github.com/arneb/django-messages.git
+    git clone https://github.com/JordanReiter/django-messages.git
     
 
 Install

@@ -1,6 +1,7 @@
 from django import forms
 from django.conf import settings
 from django.utils.translation import ugettext_lazy as _
+from django.utils.safestring import mark_safe
 from django.utils import timezone
 
 if "notification" in settings.INSTALLED_APPS and getattr(settings, 'DJANGO_MESSAGES_NOTIFY', True):
@@ -9,7 +10,9 @@ else:
     notification = None
 
 from django_messages.models import Message
-from django_messages.fields import CommaSeparatedUserField
+from django_messages.fields import CommaSeparatedUserField, CommaSeparatedUserInput
+
+from django_messages.utils import get_user_model, get_username_field
 
 class ComposeForm(forms.Form):
     """
@@ -28,7 +31,7 @@ class ComposeForm(forms.Form):
             self.fields['recipient']._recipient_filter = recipient_filter
     
                 
-    def save(self, sender, parent_msg=None):
+    def save(self, sender, parent_msg=None, extra_kwargs={}):
         recipients = self.cleaned_data['recipient']
         subject = self.cleaned_data['subject']
         body = self.cleaned_data['body']
@@ -48,9 +51,61 @@ class ComposeForm(forms.Form):
             message_list.append(msg)
             if notification:
                 if parent_msg is not None:
-                    notification.send([sender], "messages_replied", {'message': msg,})
-                    notification.send([r], "messages_reply_received", {'message': msg,})
+                    notification.send([sender], "messages_replied", {'message': msg,}, **extra_kwargs)
+                    notification.send([r], "messages_reply_received", {'message': msg,}, **extra_kwargs)
                 else:
-                    notification.send([sender], "messages_sent", {'message': msg,})
-                    notification.send([r], "messages_received", {'message': msg,})
+                    notification.send([sender], "messages_sent", {'message': msg,}, **extra_kwargs)
+                    notification.send([r], "messages_received", {'message': msg,}, **extra_kwargs)
         return message_list
+
+
+class RecipientDisplayWidget(CommaSeparatedUserInput):
+    input_type = 'hidden'
+    is_hidden = False
+    
+    def __init__(self, *args, **kwargs):
+        self.recipient_format = kwargs.pop("recipient_format", None)
+        super(RecipientDisplayWidget, self).__init__(*args, **kwargs)
+    
+    def _format_display(self, display):
+        User = get_user_model()
+        if not isinstance(display, User):
+            try:
+                display = User.objects.get(**{'%s__iexact' % get_username_field(): display})
+            except User.DoesNotExist:
+                return ""
+        if self.recipient_format:
+            return self.recipient_format(display)
+        return getattr(display, get_username_field())
+    
+    def render(self, name, value, attrs=None):
+        if value is None:
+            value = ''
+        elif isinstance(value, (list, tuple)):
+            value = (', '.join([getattr(user, get_username_field()) for user in value]))
+        output = super(RecipientDisplayWidget, self).render(name, value, attrs)
+        display = value
+        if display is None:
+            display = 'None'
+        elif isinstance(display, (list, tuple)):
+            display = (', '.join([self._format_display(user) for user in display]))
+        else:
+            display = self._format_display(display)
+        return mark_safe(u'<span>%s%s</span>' % (display, output))
+
+
+class ComposeToForm(ComposeForm):
+    def __init__(self, *args, **kwargs):
+        recipient_format = kwargs.pop("recipient_format", None)
+        self.recipients = kwargs.pop("recipients", None)
+        super(ComposeToForm, self).__init__(*args, **kwargs)
+        self.fields['recipient'].widget = RecipientDisplayWidget(recipient_format=recipient_format)
+        self.fields['recipient'].initial = self.recipients
+
+    def clean_recipient(self):
+        data = self.cleaned_data.get('recipient')
+        if not isinstance(data, (tuple, list)):
+            data = [data]
+        if set([dd.pk for dd in data]) == set([rr.pk for rr in self.recipients]):
+            return data
+        raise forms.ValidationError("You cannot change the recipient for this message.")
