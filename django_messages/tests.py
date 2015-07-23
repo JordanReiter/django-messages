@@ -150,15 +150,16 @@ class IntegrationTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.templates[0].name, 
                          'django_messages/compose.html')
-        self.assertRegexpMatches(response.content.decode('utf-8'), r"""
-            <label.*>Recipient:</label>.*
-            <span>%(recipient)s
-            <input.*name="recipient" type="hidden" value="%(recipient)s" />
-            </span>
-        """ % { 
-                'recipient': self.user_1.username 
-            }
-        )
+        input_patt = (
+            r'<label.*>Recipient:</label>.*'
+            r'<span>%(recipient)s\s*'
+            r'<input.*name="recipient" type="hidden" value="%(recipient)s" />\s*'
+            r'</span>'
+	) % { 'recipient': self.user_1.username }
+        try:
+            self.assertRegex(response.content.decode('utf-8'), input_patt)
+        except AttributeError:
+            self.assertRegexpMatches(response.content.decode('utf-8'), input_patt)
         response = self.c.post(
             reverse('messages_compose_to', 
                     kwargs={'recipient': self.user_1.username }),
@@ -236,4 +237,4 @@ class FormatTestCase(TestCase):
         self.assertEqual(format_subject(u"Re: foo bar"), u"Re[2]: foo bar")
         self.assertEqual(format_subject(u"Re[2]: foo bar"), u"Re[3]: foo bar")
         self.assertEqual(format_subject(u"Re[10]: foo bar"),
-                         u"Re[11]: foo bar")        
+                         u"Re[11]: foo bar")
