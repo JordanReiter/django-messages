@@ -216,7 +216,7 @@ def undelete(request, message_id, success_url=None):
 
 @login_required
 def view(request, message_id, form_class=ComposeToForm, quote_helper=format_quote,
-        subject_template=_(u"Re: %(subject)s"), recipient_format=None
+        subject_template=_(u"Re: %(subject)s"), recipient_format=None,
         template_name='django_messages/view.html'):
     """
     Shows a single message.``message_id`` argument is required.
