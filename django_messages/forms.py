@@ -12,7 +12,8 @@ else:
 from django_messages.models import Message
 from django_messages.fields import CommaSeparatedUserField, CommaSeparatedUserInput
 
-from django_messages.utils import get_user_model, get_username_field
+from django_messages.utils import get_user_model, get_username_field,\
+    send_notifications
 
 class ComposeForm(forms.Form):
     """
@@ -50,12 +51,7 @@ class ComposeForm(forms.Form):
             msg.save()
             message_list.append(msg)
             if notification:
-                if parent_msg is not None:
-                    notification.send([sender], "messages_replied", {'message': msg,}, **extra_kwargs)
-                    notification.send([r], "messages_reply_received", {'message': msg,}, **extra_kwargs)
-                else:
-                    notification.send([sender], "messages_sent", {'message': msg,}, **extra_kwargs)
-                    notification.send([r], "messages_received", {'message': msg,}, **extra_kwargs)
+                send_notifications(msg, **extra_kwargs)
         return message_list
 
 

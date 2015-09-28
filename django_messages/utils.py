@@ -5,13 +5,35 @@ from django.utils.translation import ugettext, ugettext_lazy as _
 from django.contrib.sites.models import Site
 from django.template.loader import render_to_string
 from django.conf import settings
+from django.utils.module_loading import import_string
 
 # favour django-mailer but fall back to django.core.mail
+
+if "notification" in settings.INSTALLED_APPS and getattr(settings, 'DJANGO_MESSAGES_NOTIFY', True):
+    from notification import models as notification
+else:
+    notification = None
 
 if "mailer" in settings.INSTALLED_APPS:
     from mailer import send_mail
 else:
     from django.core.mail import send_mail
+
+def get_from_address(message):
+    from_address = getattr(settings, "NOTIFICATION_FROM_ADDRESS", None)
+    from_address_callback = getattr(settings,
+                                    'NOTIFICATION_FROM_ADDRESS_CALLBACK', None)
+
+    if from_address_callback:
+        if not callable(from_address_callback):
+            from_address_callback = import_string(from_address_callback)
+        return from_address_callback(message)
+
+    if from_address:
+        return from_address
+
+    return settings.DEFAULT_FROM_EMAIL
+
 
 def format_quote(sender, body):
     """
@@ -80,7 +102,7 @@ def new_message_email(sender, instance, signal,
                 'message': instance,
             })
             if instance.recipient.email != "":
-                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL,
+                send_mail(subject, message, get_from_address(message),
                     [instance.recipient.email,])
         except Exception as e:
             pass #fail silently
@@ -100,3 +122,13 @@ def get_username_field():
         return get_user_model().USERNAME_FIELD
     else:
         return 'username'
+
+def send_notifications(msg, **extra_kwargs):
+    if 'from_address' not in extra_kwargs:
+        extra_kwargs['from_address'] = get_from_address(msg)
+    if msg.parent_msg is not None:
+        notification.send([msg.sender], "messages_replied", {'message': msg,}, **extra_kwargs)
+        notification.send([msg.recipient], "messages_reply_received", {'message': msg,}, **extra_kwargs)
+    else:
+        notification.send([msg.sender], "messages_sent", {'message': msg,}, **extra_kwargs)
+        notification.send([msg.recipient], "messages_received", {'message': msg,}, **extra_kwargs)
